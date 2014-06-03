@@ -24,11 +24,8 @@ module Vx
           end
 
           def create_container_options
-            if testing?
-              { "ExposedPorts" => { "22/tcp" => {} } }
-            else
-              {}
-            end
+            # Expose always the port so we can connect through the ip or by port expose (ip is not ready sometimes)
+            { "ExposedPorts" => { "22/tcp" => {} } }
           end
 
           def start_container_options

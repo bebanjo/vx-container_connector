@@ -48,11 +48,11 @@ module Vx
       private
 
         def open_ssh_session(container)
-          host = Default.ssh_host || container.json['NetworkSettings']['IPAddress']
+          host, port = ssh_container_host_and_port(container)
 
           ssh_options = {
             password:      password,
-            port:          Default.ssh_port,
+            port:          port,
             paranoid:      false,
             forward_agent: false
           }
@@ -98,6 +98,22 @@ module Vx
           end
         end
 
+        def ssh_container_host_and_port(container)
+          container = container.json
+
+          host = Default.ssh_host || container['NetworkSettings']['IPAddress']
+          port = Default.ssh_port
+
+          if (host.nil? || host == "") && container["HostConfig"]["PortBindings"]
+            ssh_ports = container.json["HostConfig"]["PortBindings"]["22/tcp"]
+            if ssh_ports.any?
+              port = ssh_ports.first["HostPort"].to_i
+              host = 'localhost'
+            end
+          end
+
+          [host, port]
+        end
     end
   end
 end
