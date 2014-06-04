@@ -48,22 +48,22 @@ module Vx
       private
 
         def open_ssh_session(container)
-          host = Default.ssh_host || container.json['NetworkSettings']['IPAddress']
-
-          ssh_options = {
-            password:      password,
-            port:          Default.ssh_port,
-            paranoid:      false,
-            forward_agent: false
-          }
-
-          instrumentation = {
-            container_type: "docker",
-            container:      container.json,
-            ssh_host:       host
-          }
-
           with_retries ::Net::SSH::AuthenticationFailed, Errno::ECONNREFUSED, Errno::ETIMEDOUT, limit: 3, sleep: 5 do
+            host = Default.ssh_host || container.json['NetworkSettings']['IPAddress']
+
+            ssh_options = {
+              password:      password,
+              port:          Default.ssh_port,
+              paranoid:      false,
+              forward_agent: false
+            }
+
+            instrumentation = {
+              container_type: "docker",
+              container:      container.json,
+              ssh_host:       host
+            }
+
             instrument("starting_ssh_session", instrumentation)
             open_ssh(host, user, ssh_options) do |ssh|
               yield Spawner.new(container, ssh, remote_dir)
