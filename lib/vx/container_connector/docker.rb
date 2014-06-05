@@ -88,6 +88,12 @@ module Vx
             end
           end
 
+          instrumentation = {
+            container_type:    "docker",
+            container:         container.json,
+            container_options: start_container_options,
+          }
+
           begin
             sleep 3
             yield container
@@ -95,6 +101,15 @@ module Vx
             instrument("kill_container", instrumentation) do
               container.kill
             end
+          end
+
+        rescue ::Net::SSH::AuthenticationFailed => e
+          # In some situations we cannot connect because we don't have an IP for the container to connect to
+          allocated_ip_address = instrumentation[:container]["NetworkSettings"]["IPAddress"] rescue ""
+          if e.message =~ /Authentication failed for user #{@user}@$/ && allocated_ip_address == ""
+            instrument("restarting_container", instrumentation)
+            sleep 10
+            retry
           end
         end
 
