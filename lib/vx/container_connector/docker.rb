@@ -48,7 +48,7 @@ module Vx
       private
 
         def open_ssh_session(container)
-          with_retries ::Net::SSH::AuthenticationFailed, Errno::ECONNREFUSED, Errno::ETIMEDOUT, limit: 5, sleep: 10 do
+          with_retries ::Net::SSH::AuthenticationFailed, Errno::ECONNREFUSED, Errno::ETIMEDOUT, limit: 3, sleep: 5 do
             host = Default.ssh_host || container.json['NetworkSettings']['IPAddress']
 
             ssh_options = {
