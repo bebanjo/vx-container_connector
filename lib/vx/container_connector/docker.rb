@@ -10,6 +10,7 @@ module Vx
 
       autoload :Spawner, File.expand_path("../docker/spawner", __FILE__)
       autoload :Default, File.expand_path("../docker/default", __FILE__)
+      autoload :Errors, File.expand_path("../docker/errors", __FILE__)
 
       include Vx::Common::Spawn
       include ContainerConnector::Retriable
@@ -72,44 +73,47 @@ module Vx
         end
 
         def start_container(&block)
-          container = instrument("create_container", container_type: "docker", container_options: create_container_options) do
-            ::Docker::Container.create create_container_options
-          end
+          container = nil
 
-          instrumentation = {
-            container_type:    "docker",
-            container:         container.json,
-            container_options: start_container_options,
-          }
+          with_retries Timeout::Error, Fog::Errors::TimeoutError, limit: 3, sleep: 10 do
+            container = instrument("create_container", container_type: "docker", container_options: create_container_options) do
+              ::Docker::Container.create create_container_options
+            end
 
-          with_retries ::Docker::Error::NotFoundError, Excon::Errors::SocketError, limit: 3, sleep: 3 do
-            instrument("start_container", instrumentation) do
-              container.start start_container_options
+            instrumentation = {
+              container_type:    "docker",
+              container:         container.json,
+              container_options: start_container_options,
+            }
+
+            begin
+              with_retries ::Docker::Error::NotFoundError, Excon::Errors::SocketError, limit: 3, sleep: 3 do
+                instrument("start_container", instrumentation) do
+                  container.start start_container_options
+
+                  Errors.wait_for(10, 2) do
+                    container.json['State']['Running'] && container.json['NetworkSettings']['IPAddress'] != ""
+                  end
+                end
+              end
+            rescue Errors::TimeoutError => e
+              if container
+                instrument("container_cannot_start", {container_type => "docker", container: container.json})
+              end
             end
           end
-
-          instrumentation = {
-            container_type:    "docker",
-            container:         container.json,
-            container_options: start_container_options,
-          }
 
           begin
-            sleep 3
             yield container
           ensure
-            instrument("kill_container", instrumentation) do
-              container.kill
-            end
-          end
+            instrumentation = {
+              container_type: "docker",
+              container:      container.json
+            }
 
-        rescue ::Net::SSH::AuthenticationFailed => e
-          # In some situations we cannot connect because we don't have an IP for the container to connect to
-          allocated_ip_address = instrumentation[:container]["NetworkSettings"]["IPAddress"] rescue ""
-          if e.message =~ /Authentication failed for user #{@user}@$/ && allocated_ip_address == ""
-            instrument("restarting_container", instrumentation)
-            sleep 10
-            retry
+            instrument("stop_container", instrumentation) do
+              container.stop
+            end
           end
         end
 
