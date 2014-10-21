@@ -34,15 +34,12 @@ module Vx
       def create_container_options
         Default.create_container_options.merge(
           'Cmd'   => init,
-          'Image' => image,
-          'Volumes' => { "#{remote_dir}/cache" => {}}
+          'Image' => image
         )
       end
 
       def start_container_options
-        Default.start_container_options.merge(
-          'Binds' => [ "/opt/#{user}/worker/shared/cache/bundle:#{remote_dir}/cache:rw" ]
-        )
+        Default.start_container_options
       end
 
       private
