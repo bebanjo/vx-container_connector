@@ -15,14 +15,16 @@ module Vx
       include ContainerConnector::Retriable
       include Instrument
 
-      attr_reader :user, :password, :init, :image, :remote_dir
+      attr_reader :user, :password, :init, :image, :remote_dir, :memory, :memory_swap
 
       def initialize(options = {})
-        @user       = options[:user]       || "vexor"
-        @password   = options[:password]   || "vexor"
-        @init       = options[:init]       || %w{ /sbin/my_init }
-        @image      = options[:image]      || "ubuntu"
-        @remote_dir = options[:remote_dir] || "/home/#{user}"
+        @user        = options[:user]        || "vexor"
+        @password    = options[:password]    || "vexor"
+        @init        = options[:init]        || %w{ /sbin/my_init }
+        @image       = options[:image]       || "ubuntu"
+        @remote_dir  = options[:remote_dir]  || "/home/#{user}"
+        @memory      = options[:memory].to_i
+        @memory_swap = options[:memory_swap].to_i
       end
 
       def start(&block)
@@ -33,8 +35,10 @@ module Vx
 
       def create_container_options
         Default.create_container_options.merge(
-          'Cmd'   => init,
-          'Image' => image
+          'Cmd'        => init,
+          'Image'      => image,
+          'Memory'     => memory,
+          'MemorySwap' => memory_swap
         )
       end
 
@@ -94,7 +98,7 @@ module Vx
           ensure
             instrument("kill_container", instrumentation) do
               container.kill
-
+              container.remove
             end
           end
 
